@@ -6,11 +6,11 @@ import (
 	"log"
 	"math/big"
 	"strconv"
+	"sync"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/websocket"
-	"github.com/jmoiron/sqlx"
 )
 
 type GameRequest struct {
@@ -161,27 +161,21 @@ func getCurrentTime() (int64, error) {
 // トランザクション開始後この関数を呼ぶ前にクエリを投げると、
 // そのトランザクション中の通常のSELECTクエリが返す結果がロック取得前の
 // 状態になることに注意 (keyword: MVCC, repeatable read).
-func updateRoomTime(tx *sqlx.Tx, roomName string, reqTime int64) (int64, bool) {
-	// See page 13 and 17 in https://www.slideshare.net/ichirin2501/insert-51938787
-	_, err := tx.Exec("INSERT INTO room_time(room_name, time) VALUES (?, 0) ON DUPLICATE KEY UPDATE time = time", roomName)
-	if err != nil {
-		log.Println(err)
-		return 0, false
+var roomTimeMap = make(map[string]int64)
+var mtx sync.Mutex
+
+func updateRoomTime(roomName string, reqTime int64) (int64, bool) {
+	mtx.Lock()
+	defer mtx.Unlock()
+
+	// Initialize room time if it doesn't exist
+	if _, ok := roomTimeMap[roomName]; !ok {
+		roomTimeMap[roomName] = 0
 	}
 
-	var roomTime int64
-	err = tx.Get(&roomTime, "SELECT time FROM room_time WHERE room_name = ? FOR UPDATE", roomName)
-	if err != nil {
-		log.Println(err)
-		return 0, false
-	}
+	roomTime := roomTimeMap[roomName]
+	currentTime := time.Now().UnixNano() / int64(time.Millisecond)
 
-	var currentTime int64
-	err = tx.Get(&currentTime, "SELECT floor(unix_timestamp(current_timestamp(3))*1000)")
-	if err != nil {
-		log.Println(err)
-		return 0, false
-	}
 	if roomTime > currentTime {
 		log.Println("room time is future")
 		return 0, false
@@ -193,12 +187,7 @@ func updateRoomTime(tx *sqlx.Tx, roomName string, reqTime int64) (int64, bool) {
 		}
 	}
 
-	_, err = tx.Exec("UPDATE room_time SET time = ? WHERE room_name = ?", currentTime, roomName)
-	if err != nil {
-		log.Println(err)
-		return 0, false
-	}
-
+	roomTimeMap[roomName] = currentTime
 	return currentTime, true
 }
 
@@ -209,7 +198,7 @@ func addIsu(roomName string, reqIsu *big.Int, reqTime int64) bool {
 		return false
 	}
 
-	_, ok := updateRoomTime(tx, roomName, reqTime)
+	_, ok := updateRoomTime(roomName, reqTime)
 	if !ok {
 		tx.Rollback()
 		return false
@@ -253,7 +242,7 @@ func buyItem(roomName string, itemID int, countBought int, reqTime int64) bool {
 		return false
 	}
 
-	_, ok := updateRoomTime(tx, roomName, reqTime)
+	_, ok := updateRoomTime(roomName, reqTime)
 	if !ok {
 		tx.Rollback()
 		return false
@@ -333,7 +322,7 @@ func getStatus(roomName string) (*GameStatus, error) {
 		return nil, err
 	}
 
-	currentTime, ok := updateRoomTime(tx, roomName, 0)
+	currentTime, ok := updateRoomTime(roomName, 0)
 	if !ok {
 		tx.Rollback()
 		return nil, fmt.Errorf("updateRoomTime failure")
