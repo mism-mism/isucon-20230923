@@ -163,7 +163,7 @@ type RoomInfo struct {
 
 var roomTimeMap = make(map[string]*RoomInfo)
 
-func updateRoomTime(roomName string, reqTime int64) (int64, bool) {
+func updateRoomTime(roomName string, reqTime int64) (int64, bool, func()) {
 	roomInfo, exists := roomTimeMap[roomName]
 	if !exists {
 		roomInfo = &RoomInfo{}
@@ -171,24 +171,26 @@ func updateRoomTime(roomName string, reqTime int64) (int64, bool) {
 	}
 
 	roomInfo.Mtx.Lock()
-	defer roomInfo.Mtx.Unlock()
+	fn := func() {
+		roomInfo.Mtx.Unlock()
+	}
 
 	roomTime := roomInfo.Time
 
 	currentTime, _ := getCurrentTime()
 	if roomTime > currentTime {
 		log.Println("room time is future")
-		return 0, false
+		return 0, false, fn
 	}
 	if reqTime != 0 {
 		if reqTime < currentTime {
 			log.Println("reqTime is past")
-			return 0, false
+			return 0, false, fn
 		}
 	}
 
 	roomInfo.Time = currentTime
-	return currentTime, true
+	return currentTime, true, fn
 }
 
 func addIsu(roomName string, reqIsu *big.Int, reqTime int64) bool {
@@ -198,7 +200,8 @@ func addIsu(roomName string, reqIsu *big.Int, reqTime int64) bool {
 		return false
 	}
 
-	_, ok := updateRoomTime(roomName, reqTime)
+	_, ok, fn := updateRoomTime(roomName, reqTime)
+	defer fn()
 	if !ok {
 		tx.Rollback()
 		return false
@@ -242,7 +245,8 @@ func buyItem(roomName string, itemID int, countBought int, reqTime int64) bool {
 		return false
 	}
 
-	_, ok := updateRoomTime(roomName, reqTime)
+	_, ok, fn := updateRoomTime(roomName, reqTime)
+	defer fn()
 	if !ok {
 		tx.Rollback()
 		return false
@@ -322,7 +326,8 @@ func getStatus(roomName string) (*GameStatus, error) {
 		return nil, err
 	}
 
-	currentTime, ok := updateRoomTime(roomName, 0)
+	currentTime, ok, fn := updateRoomTime(roomName, 0)
+	defer fn()
 	if !ok {
 		tx.Rollback()
 		return nil, fmt.Errorf("updateRoomTime failure")
