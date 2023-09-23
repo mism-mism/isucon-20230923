@@ -375,9 +375,9 @@ func getStatus(roomName string) (*GameStatus, error) {
 	}
 
 	currentTime, ok, fn := updateRoomTime(roomName, 0)
+	defer fn()
 	if !ok {
 		tx.Rollback()
-		fn()
 		return nil, fmt.Errorf("updateRoomTime failure")
 	}
 
@@ -391,7 +391,6 @@ func getStatus(roomName string) (*GameStatus, error) {
 	err = tx.Select(&addings, "SELECT time, isu FROM adding WHERE room_name = ?", roomName)
 	if err != nil {
 		tx.Rollback()
-		fn()
 		return nil, err
 	}
 
@@ -399,7 +398,6 @@ func getStatus(roomName string) (*GameStatus, error) {
 	err = tx.Select(&buyings, "SELECT item_id, ordinal, time FROM buying WHERE room_name = ?", roomName)
 	if err != nil {
 		tx.Rollback()
-		fn()
 		return nil, err
 	}
 
@@ -407,8 +405,7 @@ func getStatus(roomName string) (*GameStatus, error) {
 	if err != nil {
 		return nil, err
 	}
-	fn()
-	
+
 	status, err := calcStatus(currentTime, mItems, addings, buyings)
 	if err != nil {
 		return nil, err
