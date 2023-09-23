@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"github.com/felixge/fgprof"
@@ -69,6 +70,23 @@ func getInitializeHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 }
 
+func resolveHost(roomName string) string {
+	servers := []string{
+		//"localhost:5000",    // s1
+		"172.31.9.132:5000", // s2
+		"172.31.9.132:5000", // s2
+		"172.31.2.168:5000", // s3
+		"172.31.2.168:5000", // s3
+		"172.31.11.43:5000", // s4
+		"172.31.11.43:5000", // s4
+	}
+
+	h := md5.Sum([]byte(roomName))
+	i := int(h[0]) % len(servers)
+
+	return servers[i]
+}
+
 func getRoomHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 
@@ -80,7 +98,7 @@ func getRoomHandler(w http.ResponseWriter, r *http.Request) {
 		Host string `json:"host"`
 		Path string `json:"path"`
 	}{
-		Host: "",
+		Host: resolveHost(roomName),
 		Path: path,
 	})
 }
