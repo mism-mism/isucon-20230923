@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -378,6 +379,11 @@ func getStatus(roomName string) (*GameStatus, error) {
 	return status, err
 }
 
+type SaleItem struct {
+	Price  *big.Int
+	ItemID int
+}
+
 func calcStatus(currentTime int64, mItems map[int]mItem, addings []Adding, buyings []Buying) (*GameStatus, error) {
 	var (
 		// 1ミリ秒に生産できる椅子の単位をミリ椅子とする
@@ -427,6 +433,7 @@ func calcStatus(currentTime int64, mItems map[int]mItem, addings []Adding, buyin
 			buyingAt[b.Time] = append(buyingAt[b.Time], b)
 		}
 	}
+	var waitingOnSale []SaleItem
 
 	for _, m := range mItems {
 		itemPower0[m.ItemID] = big2exp(itemPower[m.ItemID])
@@ -435,8 +442,14 @@ func calcStatus(currentTime int64, mItems map[int]mItem, addings []Adding, buyin
 		itemPrice[m.ItemID] = price
 		if 0 <= totalMilliIsu.Cmp(new(big.Int).Mul(price, big.NewInt(1000))) {
 			itemOnSale[m.ItemID] = 0 // 0 は 時刻 currentTime で購入可能であることを表す
+		} else {
+			item := SaleItem{Price: new(big.Int).Mul(price, big.NewInt(1000)), ItemID: m.ItemID}
+			waitingOnSale = append(waitingOnSale, item)
 		}
 	}
+	sort.Slice(waitingOnSale, func(i, j int) bool {
+		return waitingOnSale[i].Price.Cmp(waitingOnSale[j].Price) < 0
+	})
 
 	schedule := []Schedule{
 		Schedule{
@@ -487,14 +500,16 @@ func calcStatus(currentTime int64, mItems map[int]mItem, addings []Adding, buyin
 		}
 
 		// 時刻 t で購入可能になったアイテムを記録する
-		for itemID := range mItems {
-			if _, ok := itemOnSale[itemID]; ok {
-				continue
+		var bought int
+		for i, saleItem := range waitingOnSale {
+			if saleItem.Price.Cmp(totalMilliIsu) > 0 {
+				break
 			}
-			if 0 <= totalMilliIsu.Cmp(new(big.Int).Mul(itemPrice[itemID], big.NewInt(1000))) {
-				itemOnSale[itemID] = t
-			}
+			itemOnSale[saleItem.ItemID] = t
+			bought = i + 1
 		}
+
+		waitingOnSale = waitingOnSale[bought:]
 	}
 
 	gsAdding := []Adding{}
