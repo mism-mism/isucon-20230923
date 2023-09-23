@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"math"
 	"math/big"
+	"strconv"
 	"sync"
 	"time"
 
@@ -132,33 +132,30 @@ func str2big(s string) *big.Int {
 	x.SetString(s, 10)
 	return x
 }
+
+var cache = sync.Map{}
+
 func big2exp(n *big.Int) Exponential {
 	if n.IsInt64() {
 		return Exponential{n.Int64(), 0}
 	}
 
-	// Calculate the number of digits using logarithm base 10
-	// This is more efficient than converting the big.Int to a string.
-	numberOfDigits := float64(n.BitLen()) * (math.Log(2) / math.Log(10))
-	decimalDigits := int64(math.Ceil(numberOfDigits))
-
-	// If n has more than 15 digits
-	if decimalDigits > 15 {
-		// divisor = 10^(numberOfDigits-15)
-		divisor := new(big.Int).Exp(big.NewInt(10), big.NewInt(decimalDigits-15), nil)
-
-		// Divide n by divisor to get the top 15 digits
-		mantissaBig := new(big.Int).Quo(n, divisor)
-
-		// Ensure the result fits in an int64
-		if !mantissaBig.IsInt64() {
-			log.Panic("Mantissa too large for int64")
-		}
-		return Exponential{mantissaBig.Int64(), decimalDigits - 15}
+	if exp, ok := cache.Load(n.String()); ok {
+		return exp.(Exponential)
 	}
 
-	// If the big.Int is less than 15 digits but too large for int64
-	return Exponential{n.Int64(), 0}
+	s := n.String()
+	t, err := strconv.ParseInt(s[:15], 10, 64)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	result := Exponential{t, int64(len(s) - 15)}
+
+	// 結果をキャッシュする
+	cache.Store(s, result)
+
+	return result
 }
 
 func getCurrentTime() (int64, error) {
@@ -544,88 +541,9 @@ func calcStatus(currentTime int64, mItems map[int]mItem, addings []Adding, buyin
 	}, nil
 }
 
-var (
-	roomStatusSubscribers      = map[string][]*websocket.Conn{}
-	roomStatusSubscribersMutex = sync.RWMutex{}
-)
-
-func makeRoomStatusProvider(roomName string) {
-	log.Println("makeRoomStatusProvider", roomName)
-
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-
-LOOP:
-	for {
-		select {
-		case <-ticker.C:
-			roomStatusSubscribersMutex.RLock()
-			subscribers, ok := roomStatusSubscribers[roomName]
-			roomStatusSubscribersMutex.RUnlock()
-			if !ok || len(subscribers) == 0 {
-				log.Println("makeRoomStatusProvider", roomName, "no subscribers")
-				break LOOP
-			}
-
-			status, err := getStatus(roomName)
-			if err != nil {
-				log.Println("failed to get status", err)
-				return
-			}
-
-			for _, ws := range subscribers {
-				go func(ws *websocket.Conn) {
-					err = ws.WriteJSON(status)
-					if err != nil {
-						log.Println("failed to write json", err)
-						unsubscribeRoomStatus(roomName, ws)
-						return
-					}
-				}(ws)
-			}
-		}
-	}
-}
-
-func subscribeRoomStatus(roomName string, ws *websocket.Conn) {
-	roomStatusSubscribersMutex.Lock()
-	subscribers, ok := roomStatusSubscribers[roomName]
-	roomStatusSubscribers[roomName] = append(subscribers, ws)
-	if !ok {
-		// 初回subscribe時のみsubscriptionを作る
-		go makeRoomStatusProvider(roomName)
-	}
-	roomStatusSubscribersMutex.Unlock()
-	log.Println("subscribeRoomStatus", roomName, len(subscribers)+1)
-}
-
-func unsubscribeRoomStatus(roomName string, ws *websocket.Conn) {
-	roomStatusSubscribersMutex.Lock()
-	subscribers, ok := roomStatusSubscribers[roomName]
-	if !ok {
-		log.Println("unsubscribeRoomStatus", roomName, "not found")
-		return
-	}
-
-	remainingSubscribers := []*websocket.Conn{}
-	for _, s := range subscribers {
-		if s != ws {
-			remainingSubscribers = append(remainingSubscribers, s)
-		}
-	}
-	roomStatusSubscribers[roomName] = remainingSubscribers
-
-	roomStatusSubscribersMutex.Unlock()
-
-	log.Println("unsubscribeRoomStatus", roomName, len(remainingSubscribers))
-}
-
 func serveGameConn(ws *websocket.Conn, roomName string) {
 	log.Println(ws.RemoteAddr(), "serveGameConn", roomName)
-	defer func() {
-		ws.Close()
-		unsubscribeRoomStatus(roomName, ws)
-	}()
+	defer ws.Close()
 
 	status, err := getStatus(roomName)
 	if err != nil {
@@ -662,7 +580,8 @@ func serveGameConn(ws *websocket.Conn, roomName string) {
 		}
 	}()
 
-	subscribeRoomStatus(roomName, ws)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
 
 	for {
 		select {
@@ -699,6 +618,18 @@ func serveGameConn(ws *websocket.Conn, roomName string) {
 				RequestID: req.RequestID,
 				IsSuccess: success,
 			})
+			if err != nil {
+				log.Println(err)
+				return
+			}
+		case <-ticker.C:
+			status, err := getStatus(roomName)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
+			err = ws.WriteJSON(status)
 			if err != nil {
 				log.Println(err)
 				return
