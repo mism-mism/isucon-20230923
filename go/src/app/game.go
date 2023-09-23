@@ -607,7 +607,10 @@ func unsubscribeRoomStatus(roomName string, ws *websocket.Conn) {
 
 func serveGameConn(ws *websocket.Conn, roomName string) {
 	log.Println(ws.RemoteAddr(), "serveGameConn", roomName)
-	defer ws.Close()
+	defer func() {
+		ws.Close()
+		unsubscribeRoomStatus(roomName, ws)
+	}()
 
 	status, err := getStatus(roomName)
 	if err != nil {
