@@ -204,7 +204,7 @@ var roomInfoMutex sync.Mutex
 
 var roomTimeMap = make(map[string]*RoomInfo)
 
-func updateRoomTime(roomName string, reqTime int64) (int64, bool, func()) {
+func syncRoomInfo(roomName string) *RoomInfo {
 	roomInfoMutex.Lock()
 	defer roomInfoMutex.Unlock()
 	roomInfo, exists := roomTimeMap[roomName]
@@ -212,6 +212,11 @@ func updateRoomTime(roomName string, reqTime int64) (int64, bool, func()) {
 		roomInfo = &RoomInfo{}
 		roomTimeMap[roomName] = roomInfo
 	}
+	return roomInfo
+}
+
+func updateRoomTime(roomName string, reqTime int64) (int64, bool, func()) {
+	roomInfo := syncRoomInfo(roomName)
 
 	roomInfo.Mtx.Lock()
 	fn := func() {
