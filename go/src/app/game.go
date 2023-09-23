@@ -187,7 +187,7 @@ func updateRoomTime(roomName string, reqTime int64) (int64, bool) {
 		}
 	}
 
-	roomTimeMap[roomName] = currentTime
+	roomInfo.Time = currentTime
 	return currentTime, true
 }
 
@@ -198,7 +198,7 @@ func addIsu(roomName string, reqIsu *big.Int, reqTime int64) bool {
 		return false
 	}
 
-	_, ok := updateRoomTime(tx, roomName, reqTime)
+	_, ok := updateRoomTime(roomName, reqTime)
 	if !ok {
 		tx.Rollback()
 		return false
@@ -242,7 +242,7 @@ func buyItem(roomName string, itemID int, countBought int, reqTime int64) bool {
 		return false
 	}
 
-	_, ok := updateRoomTime(tx, roomName, reqTime)
+	_, ok := updateRoomTime(roomName, reqTime)
 	if !ok {
 		tx.Rollback()
 		return false
@@ -322,7 +322,7 @@ func getStatus(roomName string) (*GameStatus, error) {
 		return nil, err
 	}
 
-	currentTime, ok := updateRoomTime(tx, roomName, 0)
+	currentTime, ok := updateRoomTime(roomName, 0)
 	if !ok {
 		tx.Rollback()
 		return nil, fmt.Errorf("updateRoomTime failure")
