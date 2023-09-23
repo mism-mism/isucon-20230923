@@ -562,7 +562,7 @@ func makeRoomStatusProvider(roomName string) {
 				go func(ws *websocket.Conn) {
 					err = ws.WriteJSON(status)
 					if err != nil {
-						log.Println(err)
+						log.Println("failed to write json", err)
 						unsubscribeRoomStatus(roomName, ws)
 						return
 					}
@@ -601,6 +601,8 @@ func unsubscribeRoomStatus(roomName string, ws *websocket.Conn) {
 	roomStatusSubscribers[roomName] = newSubscribers
 
 	roomStatusSubscribersMutex.Unlock()
+
+	log.Println("unsubscribeRoomStatus", roomName, len(newSubscribers))
 }
 
 func serveGameConn(ws *websocket.Conn, roomName string) {
