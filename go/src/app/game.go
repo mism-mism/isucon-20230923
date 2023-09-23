@@ -548,6 +548,7 @@ func makeRoomStatusProvider(roomName string) {
 			subscribers, ok := roomStatusSubscribers[roomName]
 			roomStatusSubscribersMutex.RUnlock()
 			if !ok || len(subscribers) == 0 {
+				log.Println("makeRoomStatusProvider", roomName, "no subscribers")
 				break
 			}
 
