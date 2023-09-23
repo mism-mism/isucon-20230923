@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/jmoiron/sqlx"
 	"log"
 	"math/big"
 	"strconv"
@@ -166,7 +165,7 @@ func getCurrentTime() (int64, error) {
 var roomTimeMap = make(map[string]int64)
 var mtx sync.Mutex
 
-func updateRoomTime(tx *sqlx.Tx, roomName string, reqTime int64) (int64, bool) {
+func updateRoomTime(roomName string, reqTime int64) (int64, bool) {
 	mtx.Lock()
 	defer mtx.Unlock()
 
