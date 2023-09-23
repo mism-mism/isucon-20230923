@@ -139,22 +139,17 @@ func big2exp(n *big.Int) Exponential {
 		return Exponential{n.Int64(), 0}
 	}
 
-	// Use BitLen to approximate the number of digits
-	b := n.BitLen()
-	numberOfDigits := (b / 10) * 3 // approximate number of digits
+	estimatedDigits := int64(float64(n.BitLen()) / 3.32193)
+	numberOfDigits := estimatedDigits
 
-	e := numberOfDigits - 15
-	if e <= 0 {
-		return Exponential{n.Int64(), 0}
-	}
-	divider := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(e)), nil)
+	divider := new(big.Int).Exp(big.NewInt(10), big.NewInt(numberOfDigits-15), nil)
 	mantissaBig := new(big.Int).Div(n, divider)
 
-	if mantissaBig.BitLen() > 63 { // Ensure it fits in int64
+	if mantissaBig.BitLen() > 63 {
 		log.Panic("Mantissa too large for int64")
 	}
 
-	return Exponential{mantissaBig.Int64(), int64(e)}
+	return Exponential{mantissaBig.Int64(), numberOfDigits - 15}
 }
 
 func getCurrentTime() (int64, error) {
