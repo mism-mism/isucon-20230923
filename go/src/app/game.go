@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"strconv"
 	"sync"
 	"time"
 
@@ -133,35 +134,17 @@ func str2big(s string) *big.Int {
 }
 
 func big2exp(n *big.Int) Exponential {
-	threshold := new(big.Int).Exp(big.NewInt(10), big.NewInt(15), nil)
-
-	if n.Cmp(threshold) < 0 {
+	if n.IsInt64() {
 		return Exponential{n.Int64(), 0}
 	}
 
-	estimatedDigits := int64(float64(n.BitLen()) / 3.32193)
-	numberOfDigits := estimatedDigits
+	s := n.String()
 
-	divider := new(big.Int).Exp(big.NewInt(10), big.NewInt(numberOfDigits-15), nil)
-
-	if n.Cmp(divider) < 0 {
-		numberOfDigits--
-		divider.Div(divider, big.NewInt(10))
-	} else {
-		nextDivider := new(big.Int).Mul(divider, big.NewInt(10))
-		if n.Cmp(nextDivider) >= 0 {
-			numberOfDigits++
-			divider = nextDivider
-		}
+	t, err := strconv.ParseInt(s[:15], 10, 64)
+	if err != nil {
+		log.Panic(err)
 	}
-
-	mantissaBig := new(big.Int).Div(n, divider)
-
-	if mantissaBig.BitLen() > 63 {
-		log.Panic("Mantissa too large for int64")
-	}
-
-	return Exponential{mantissaBig.Int64(), numberOfDigits - 15}
+	return Exponential{t, int64(len(s) - 15)}
 }
 
 func getCurrentTime() (int64, error) {
