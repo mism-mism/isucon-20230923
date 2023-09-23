@@ -8,17 +8,20 @@ build:
 deploy:
 	scp go/app isucon-s2:webapp/go/app
 	scp go/app isucon-s3:webapp/go/app
+	scp go/app isucon-s4:webapp/go/app
 
 stop-services:
 	sudo systemctl stop nginx
 	sudo systemctl stop cco.golang.service 
 	ssh isucon-s2 "sudo systemctl stop cco.golang.service"
 	ssh isucon-s3 "sudo systemctl stop cco.golang.service"
+	ssh isucon-s4 "sudo systemctl stop cco.golang.service"
 	sudo systemctl stop cco.golang.service
-	ssh isucon-db "sudo systemctl stop mysql"
+	sudo systemctl stop mysql
 
 start-services:
-	ssh isucon-db "sudo systemctl start mysql"
+	sudo systemctl start mysql
+	ssh isucon-s4 "sudo systemctl start cco.golang.service"
 	ssh isucon-s3 "sudo systemctl start cco.golang.service"
 	ssh isucon-s2 "sudo systemctl start cco.golang.service"
 	sudo systemctl start cco.golang.service
@@ -28,7 +31,7 @@ start-services:
 truncate-logs:
 	sudo truncate --size 0 /var/log/nginx/access.log
 	sudo truncate --size 0 /var/log/nginx/error.log
-	ssh isucon-db "sudo truncate --size 0 /var/log/mysql/mysql-slow.log"
+	sudo truncate --size 0 /var/log/mysql/mysql-slow.log
 
 kataribe:
 	sudo cat /var/log/nginx/access.log | ./../kataribe -conf ~/kataribe.toml
