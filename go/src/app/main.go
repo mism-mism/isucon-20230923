@@ -3,16 +3,17 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
-	"net/http"
-	"net/url"
-	"os"
-	"time"
-
+	"github.com/felixge/fgprof"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/jmoiron/sqlx"
+	"log"
+	"net/http"
+	_ "net/http/pprof"
+	"net/url"
+	"os"
+	"time"
 )
 
 var (
@@ -93,6 +94,10 @@ func wsGameHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	http.DefaultServeMux.Handle("/debug/fgprof", fgprof.Handler())
+	go func() {
+		log.Println(http.ListenAndServe(":6060", nil))
+	}()
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	initDB()
 
