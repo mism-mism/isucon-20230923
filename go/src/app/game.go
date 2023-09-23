@@ -320,7 +320,23 @@ func buyItem(roomName string, itemID int, countBought int, reqTime int64) bool {
 	return true
 }
 
+var cache sync.Map
+
+type CachedStatus struct {
+	Status    *GameStatus
+	Timestamp int64
+}
+
+const cacheTTL = 60
+
 func getStatus(roomName string) (*GameStatus, error) {
+	if cachedValue, ok := cache.Load(roomName); ok {
+		cachedStatus := cachedValue.(CachedStatus)
+		if time.Now().Unix()-cachedStatus.Timestamp < cacheTTL {
+			return cachedStatus.Status, nil
+		}
+	}
+
 	tx, err := db.Beginx()
 	if err != nil {
 		return nil, err
@@ -373,6 +389,12 @@ func getStatus(roomName string) (*GameStatus, error) {
 	if err != nil {
 		return nil, err
 	}
+	status.Time = latestTime
+	
+	cache.Store(roomName, CachedStatus{
+		Status:    status,
+		Timestamp: time.Now().Unix(),
+	})
 
 	status.Time = latestTime
 	return status, err
