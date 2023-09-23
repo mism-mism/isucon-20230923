@@ -61,6 +61,11 @@ func getInitializeHandler(w http.ResponseWriter, r *http.Request) {
 	db.MustExec("TRUNCATE TABLE adding")
 	db.MustExec("TRUNCATE TABLE buying")
 	db.MustExec("TRUNCATE TABLE room_time")
+
+	roomStatusSubscribersMutex.Lock()
+	roomStatusSubscribers = map[string][]*websocket.Conn{}
+	roomStatusSubscribersMutex.Unlock()
+
 	w.WriteHeader(204)
 }
 

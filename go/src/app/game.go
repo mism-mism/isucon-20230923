@@ -530,9 +530,88 @@ func calcStatus(currentTime int64, mItems map[int]mItem, addings []Adding, buyin
 	}, nil
 }
 
+var (
+	roomStatusSubscribers      = map[string][]*websocket.Conn{}
+	roomStatusSubscribersMutex = sync.RWMutex{}
+)
+
+func makeRoomStatusProvider(roomName string) {
+	log.Println("makeRoomStatusProvider", roomName)
+
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+LOOP:
+	for {
+		select {
+		case <-ticker.C:
+			roomStatusSubscribersMutex.RLock()
+			subscribers, ok := roomStatusSubscribers[roomName]
+			roomStatusSubscribersMutex.RUnlock()
+			if !ok || len(subscribers) == 0 {
+				log.Println("makeRoomStatusProvider", roomName, "no subscribers")
+				break LOOP
+			}
+
+			status, err := getStatus(roomName)
+			if err != nil {
+				log.Println("failed to get status", err)
+				return
+			}
+
+			for _, ws := range subscribers {
+				go func(ws *websocket.Conn) {
+					err = ws.WriteJSON(status)
+					if err != nil {
+						log.Println("failed to write json", err)
+						unsubscribeRoomStatus(roomName, ws)
+						return
+					}
+				}(ws)
+			}
+		}
+	}
+}
+
+func subscribeRoomStatus(roomName string, ws *websocket.Conn) {
+	roomStatusSubscribersMutex.Lock()
+	subscribers, ok := roomStatusSubscribers[roomName]
+	roomStatusSubscribers[roomName] = append(subscribers, ws)
+	if !ok {
+		// 初回subscribe時のみsubscriptionを作る
+		go makeRoomStatusProvider(roomName)
+	}
+	roomStatusSubscribersMutex.Unlock()
+	log.Println("subscribeRoomStatus", roomName, len(subscribers)+1)
+}
+
+func unsubscribeRoomStatus(roomName string, ws *websocket.Conn) {
+	roomStatusSubscribersMutex.Lock()
+	subscribers, ok := roomStatusSubscribers[roomName]
+	if !ok {
+		log.Println("unsubscribeRoomStatus", roomName, "not found")
+		return
+	}
+
+	remainingSubscribers := []*websocket.Conn{}
+	for _, s := range subscribers {
+		if s != ws {
+			remainingSubscribers = append(remainingSubscribers, s)
+		}
+	}
+	roomStatusSubscribers[roomName] = remainingSubscribers
+
+	roomStatusSubscribersMutex.Unlock()
+
+	log.Println("unsubscribeRoomStatus", roomName, len(remainingSubscribers))
+}
+
 func serveGameConn(ws *websocket.Conn, roomName string) {
 	log.Println(ws.RemoteAddr(), "serveGameConn", roomName)
-	defer ws.Close()
+	defer func() {
+		ws.Close()
+		unsubscribeRoomStatus(roomName, ws)
+	}()
 
 	status, err := getStatus(roomName)
 	if err != nil {
@@ -569,8 +648,7 @@ func serveGameConn(ws *websocket.Conn, roomName string) {
 		}
 	}()
 
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
+	subscribeRoomStatus(roomName, ws)
 
 	for {
 		select {
@@ -607,18 +685,6 @@ func serveGameConn(ws *websocket.Conn, roomName string) {
 				RequestID: req.RequestID,
 				IsSuccess: success,
 			})
-			if err != nil {
-				log.Println(err)
-				return
-			}
-		case <-ticker.C:
-			status, err := getStatus(roomName)
-			if err != nil {
-				log.Println(err)
-				return
-			}
-
-			err = ws.WriteJSON(status)
 			if err != nil {
 				log.Println(err)
 				return
