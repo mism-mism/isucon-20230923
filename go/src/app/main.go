@@ -72,15 +72,17 @@ func getInitializeHandler(w http.ResponseWriter, r *http.Request) {
 
 func resolveHost(roomName string) string {
 	servers := []string{
-		"172.31.9.132:5000",
-		"172.31.2.168:5000",
-		//"172.31.11.43:5000",
+		"localhost:5000",    // s1
+		"172.31.9.132:5000", // s2
+		"172.31.9.132:5000", // s2
+		"172.31.2.168:5000", // s3
+		"172.31.2.168:5000", // s3
+		"172.31.11.43:5000", // s4
+		"172.31.11.43:5000", // s4
 	}
 
 	h := md5.Sum([]byte(roomName))
 	i := int(h[0]) % len(servers)
-
-	log.Println("resolveHost", roomName, i, servers[i])
 
 	return servers[i]
 }
