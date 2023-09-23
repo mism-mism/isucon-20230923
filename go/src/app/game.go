@@ -628,29 +628,19 @@ func serveGameConn(ws *websocket.Conn, roomName string) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	chReq := make(chan GameRequest)
-
-	go func() {
-		defer cancel()
-		for {
-			req := GameRequest{}
-			err := ws.ReadJSON(&req)
-			if err != nil {
-				log.Println(err)
-				return
-			}
-
-			select {
-			case chReq <- req:
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
+	chReq := make(chan GameRequest, 10)
 
 	subscribeRoomStatus(roomName, ws)
 
 	for {
+		req := GameRequest{}
+		err := ws.ReadJSON(&req)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		chReq <- req
+
 		select {
 		case req := <-chReq:
 			log.Println(req)
@@ -692,5 +682,7 @@ func serveGameConn(ws *websocket.Conn, roomName string) {
 		case <-ctx.Done():
 			return
 		}
+
+		time.Sleep(100 * time.Millisecond)
 	}
 }
