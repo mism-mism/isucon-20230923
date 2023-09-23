@@ -251,14 +251,12 @@ func addIsu(roomName string, reqIsu *big.Int, reqTime int64) bool {
 	_, ok, fn := updateRoomTime(roomName, reqTime)
 	defer fn()
 	if !ok {
-		fn()
 		tx.Rollback()
 		return false
 	}
 
 	_, err = tx.Exec("INSERT INTO adding(room_name, time, isu) VALUES (?, ?, '0') ON DUPLICATE KEY UPDATE isu=isu", roomName, reqTime)
 	if err != nil {
-		fn()
 		log.Println(err)
 		tx.Rollback()
 		return false
@@ -267,7 +265,6 @@ func addIsu(roomName string, reqIsu *big.Int, reqTime int64) bool {
 	var isuStr string
 	err = tx.QueryRow("SELECT isu FROM adding WHERE room_name = ? AND time = ? FOR UPDATE", roomName, reqTime).Scan(&isuStr)
 	if err != nil {
-		fn()
 		log.Println(err)
 		tx.Rollback()
 		return false
@@ -277,7 +274,6 @@ func addIsu(roomName string, reqIsu *big.Int, reqTime int64) bool {
 	isu.Add(isu, reqIsu)
 	_, err = tx.Exec("UPDATE adding SET isu = ? WHERE room_name = ? AND time = ?", isu.String(), roomName, reqTime)
 	if err != nil {
-		fn()
 		log.Println(err)
 		tx.Rollback()
 		return false
@@ -285,10 +281,8 @@ func addIsu(roomName string, reqIsu *big.Int, reqTime int64) bool {
 
 	if err := tx.Commit(); err != nil {
 		log.Println(err)
-		fn()
 		return false
 	}
-	fn()
 	return true
 }
 
@@ -302,7 +296,6 @@ func buyItem(roomName string, itemID int, countBought int, reqTime int64) bool {
 	_, ok, fn := updateRoomTime(roomName, reqTime)
 	defer fn()
 	if !ok {
-		fn()
 		tx.Rollback()
 		return false
 	}
@@ -310,13 +303,11 @@ func buyItem(roomName string, itemID int, countBought int, reqTime int64) bool {
 	var countBuying int
 	err = tx.Get(&countBuying, "SELECT COUNT(*) FROM buying WHERE room_name = ? AND item_id = ?", roomName, itemID)
 	if err != nil {
-		fn()
 		log.Println(err)
 		tx.Rollback()
 		return false
 	}
 	if countBuying != countBought {
-		fn()
 		tx.Rollback()
 		log.Println(roomName, itemID, countBought+1, " is already bought")
 		return false
@@ -326,7 +317,6 @@ func buyItem(roomName string, itemID int, countBought int, reqTime int64) bool {
 	var addings []Adding
 	err = tx.Select(&addings, "SELECT isu FROM adding WHERE room_name = ? AND time <= ?", roomName, reqTime)
 	if err != nil {
-		fn()
 		log.Println(err)
 		tx.Rollback()
 		return false
@@ -339,7 +329,6 @@ func buyItem(roomName string, itemID int, countBought int, reqTime int64) bool {
 	var buyings []Buying
 	err = tx.Select(&buyings, "SELECT item_id, ordinal, time FROM buying WHERE room_name = ?", roomName)
 	if err != nil {
-		fn()
 		log.Println(err)
 		tx.Rollback()
 		return false
@@ -359,7 +348,6 @@ func buyItem(roomName string, itemID int, countBought int, reqTime int64) bool {
 	item = *getItemByID(itemID)
 	need := new(big.Int).Mul(item.GetPrice(countBought+1), big.NewInt(1000))
 	if totalMilliIsu.Cmp(need) < 0 {
-		fn()
 		log.Println("not enough")
 		tx.Rollback()
 		return false
@@ -367,18 +355,16 @@ func buyItem(roomName string, itemID int, countBought int, reqTime int64) bool {
 
 	_, err = tx.Exec("INSERT INTO buying(room_name, item_id, ordinal, time) VALUES(?, ?, ?, ?)", roomName, itemID, countBought+1, reqTime)
 	if err != nil {
-		fn()
 		log.Println(err)
 		tx.Rollback()
 		return false
 	}
 
 	if err := tx.Commit(); err != nil {
-		fn()
 		log.Println(err)
 		return false
 	}
-	fn()
+
 	return true
 }
 
@@ -389,10 +375,9 @@ func getStatus(roomName string) (*GameStatus, error) {
 	}
 
 	currentTime, ok, fn := updateRoomTime(roomName, 0)
-	defer fn()
 	if !ok {
-		fn()
 		tx.Rollback()
+		fn()
 		return nil, fmt.Errorf("updateRoomTime failure")
 	}
 
@@ -405,39 +390,36 @@ func getStatus(roomName string) (*GameStatus, error) {
 	addings := []Adding{}
 	err = tx.Select(&addings, "SELECT time, isu FROM adding WHERE room_name = ?", roomName)
 	if err != nil {
-		fn()
 		tx.Rollback()
+		fn()
 		return nil, err
 	}
 
 	buyings := []Buying{}
 	err = tx.Select(&buyings, "SELECT item_id, ordinal, time FROM buying WHERE room_name = ?", roomName)
 	if err != nil {
-		fn()
 		tx.Rollback()
+		fn()
 		return nil, err
 	}
 
 	err = tx.Commit()
+	fn()
 	if err != nil {
-		fn()
 		return nil, err
 	}
 
 	status, err := calcStatus(currentTime, mItems, addings, buyings)
 	if err != nil {
-		fn()
 		return nil, err
 	}
 
 	// calcStatusに時間がかかる可能性があるので タイムスタンプを取得し直す
 	latestTime, err := getCurrentTime()
 	if err != nil {
-		fn()
 		return nil, err
 	}
 
-	fn()
 	status.Time = latestTime
 	return status, err
 }
