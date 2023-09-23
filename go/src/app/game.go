@@ -101,6 +101,39 @@ type mItem struct {
 	Price4 int64 `db:"price4"`
 }
 
+var itemsCacheMap = map[int]mItem{
+	1:  {1, 0, 1, 0, 1, 0, 1, 1, 1},
+	2:  {2, 0, 1, 1, 1, 0, 1, 2, 1},
+	3:  {3, 1, 10, 0, 2, 1, 3, 1, 2},
+	4:  {4, 1, 24, 1, 2, 1, 10, 0, 3},
+	5:  {5, 1, 25, 100, 3, 2, 20, 20, 2},
+	6:  {6, 1, 30, 147, 13, 1, 22, 69, 17},
+	7:  {7, 5, 80, 128, 6, 6, 61, 200, 5},
+	8:  {8, 20, 340, 180, 3, 9, 105, 134, 14},
+	9:  {9, 55, 520, 335, 5, 48, 243, 600, 7},
+	10: {10, 157, 1071, 1700, 12, 157, 625, 1000, 13},
+}
+
+var itemsCache = []mItem{
+	{1, 0, 1, 0, 1, 0, 1, 1, 1},
+	{2, 0, 1, 1, 1, 0, 1, 2, 1},
+	{3, 1, 10, 0, 2, 1, 3, 1, 2},
+	{4, 1, 24, 1, 2, 1, 10, 0, 3},
+	{5, 1, 25, 100, 3, 2, 20, 20, 2},
+	{6, 1, 30, 147, 13, 1, 22, 69, 17},
+	{7, 5, 80, 128, 6, 6, 61, 200, 5},
+	{8, 20, 340, 180, 3, 9, 105, 134, 14},
+	{9, 55, 520, 335, 5, 48, 243, 600, 7},
+	{10, 157, 1071, 1700, 12, 157, 625, 1000, 13},
+}
+
+func getItemByID(itemID int) *mItem {
+	if item, exists := itemsCacheMap[itemID]; exists {
+		return &item
+	}
+	return nil
+}
+
 func (item *mItem) GetPower(count int) *big.Int {
 	// power(x):=(cx+1)*d^(ax+b)
 	a := item.Power1
@@ -287,7 +320,7 @@ func buyItem(roomName string, itemID int, countBought int, reqTime int64) bool {
 	}
 	for _, b := range buyings {
 		var item mItem
-		tx.Get(&item, "SELECT * FROM m_item WHERE item_id = ?", b.ItemID)
+		item = *getItemByID(b.ItemID)
 		cost := new(big.Int).Mul(item.GetPrice(b.Ordinal), big.NewInt(1000))
 		totalMilliIsu.Sub(totalMilliIsu, cost)
 		if b.Time <= reqTime {
@@ -297,7 +330,7 @@ func buyItem(roomName string, itemID int, countBought int, reqTime int64) bool {
 	}
 
 	var item mItem
-	tx.Get(&item, "SELECT * FROM m_item WHERE item_id = ?", itemID)
+	item = *getItemByID(itemID)
 	need := new(big.Int).Mul(item.GetPrice(countBought+1), big.NewInt(1000))
 	if totalMilliIsu.Cmp(need) < 0 {
 		log.Println("not enough")
@@ -334,12 +367,7 @@ func getStatus(roomName string) (*GameStatus, error) {
 	}
 
 	mItems := map[int]mItem{}
-	var items []mItem
-	err = tx.Select(&items, "SELECT * FROM m_item")
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
+	var items []mItem = itemsCache
 	for _, item := range items {
 		mItems[item.ItemID] = item
 	}
