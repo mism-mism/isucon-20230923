@@ -400,6 +400,7 @@ func getStatus(roomName string) (*GameStatus, error) {
 }
 
 func calcStatus(currentTime int64, mItems map[int]mItem, addings []Adding, buyings []Buying) (*GameStatus, error) {
+	time.Sleep(200 * time.Millisecond)
 	var (
 		// 1ミリ秒に生産できる椅子の単位をミリ椅子とする
 		totalMilliIsu = big.NewInt(0)
