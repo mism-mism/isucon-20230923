@@ -548,7 +548,7 @@ func makeRoomStatusProvider(roomName string) {
 			subscribers, ok := roomStatusSubscribers[roomName]
 			roomStatusSubscribersMutex.RUnlock()
 			if !ok || len(subscribers) == 0 {
-				return
+				break
 			}
 
 			status, err := getStatus(roomName)
@@ -574,11 +574,11 @@ func makeRoomStatusProvider(roomName string) {
 func subscribeRoomStatus(roomName string, ws *websocket.Conn) {
 	roomStatusSubscribersMutex.Lock()
 	subscribers, ok := roomStatusSubscribers[roomName]
+	roomStatusSubscribers[roomName] = append(subscribers, ws)
 	if !ok {
 		// 初回subscribe時のみsubscriptionを作る
 		go makeRoomStatusProvider(roomName)
 	}
-	roomStatusSubscribers[roomName] = append(subscribers, ws)
 	roomStatusSubscribersMutex.Unlock()
 	log.Println("subscribeRoomStatus", roomName, len(subscribers)+1)
 }
