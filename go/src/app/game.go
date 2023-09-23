@@ -592,17 +592,17 @@ func unsubscribeRoomStatus(roomName string, ws *websocket.Conn) {
 		return
 	}
 
-	newSubscribers := []*websocket.Conn{}
+	remainingSubscribers := []*websocket.Conn{}
 	for _, s := range subscribers {
 		if s != ws {
-			newSubscribers = append(newSubscribers, s)
+			remainingSubscribers = append(remainingSubscribers, s)
 		}
 	}
-	roomStatusSubscribers[roomName] = newSubscribers
+	roomStatusSubscribers[roomName] = remainingSubscribers
 
 	roomStatusSubscribersMutex.Unlock()
 
-	log.Println("unsubscribeRoomStatus", roomName, len(newSubscribers))
+	log.Println("unsubscribeRoomStatus", roomName, len(remainingSubscribers))
 }
 
 func serveGameConn(ws *websocket.Conn, roomName string) {
