@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/jmoiron/sqlx"
 	"log"
 	"math/big"
 	"strconv"
@@ -149,12 +148,7 @@ func big2exp(n *big.Int) Exponential {
 }
 
 func getCurrentTime() (int64, error) {
-	var currentTime int64
-	err := db.Get(&currentTime, "SELECT floor(unix_timestamp(current_timestamp(3))*1000)")
-	if err != nil {
-		return 0, err
-	}
-	return currentTime, nil
+	return time.Now().UnixNano() / int64(time.Millisecond), nil
 }
 
 // 部屋のロックを取りタイムスタンプを更新する
@@ -162,27 +156,26 @@ func getCurrentTime() (int64, error) {
 // トランザクション開始後この関数を呼ぶ前にクエリを投げると、
 // そのトランザクション中の通常のSELECTクエリが返す結果がロック取得前の
 // 状態になることに注意 (keyword: MVCC, repeatable read).
-var roomTimeMap = make(map[string]int64)
-var mtx sync.Mutex
+type RoomInfo struct {
+	Time int64
+	Mtx  sync.Mutex
+}
 
-func updateRoomTime(tx *sqlx.Tx, roomName string, reqTime int64) (int64, bool) {
-	mtx.Lock()
-	defer mtx.Unlock()
+var roomTimeMap = make(map[string]*RoomInfo)
 
-	// Initialize room time if it doesn't exist
-	if _, ok := roomTimeMap[roomName]; !ok {
-		roomTimeMap[roomName] = 0
+func updateRoomTime(roomName string, reqTime int64) (int64, bool) {
+	roomInfo, exists := roomTimeMap[roomName]
+	if !exists {
+		roomInfo = &RoomInfo{}
+		roomTimeMap[roomName] = roomInfo
 	}
 
-	roomTime := roomTimeMap[roomName]
+	roomInfo.Mtx.Lock()
+	defer roomInfo.Mtx.Unlock()
 
-	var currentTime int64
-	err := tx.Get(&currentTime, "SELECT floor(unix_timestamp(current_timestamp(3))*1000)")
-	if err != nil {
-		log.Println(err)
-		return 0, false
-	}
+	roomTime := roomInfo.Time
 
+	currentTime, _ := getCurrentTime()
 	if roomTime > currentTime {
 		log.Println("room time is future")
 		return 0, false
