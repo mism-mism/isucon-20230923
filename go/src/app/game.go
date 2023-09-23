@@ -404,11 +404,11 @@ func getStatus(roomName string) (*GameStatus, error) {
 	}
 
 	err = tx.Commit()
-	fn()
 	if err != nil {
 		return nil, err
 	}
-
+	fn()
+	
 	status, err := calcStatus(currentTime, mItems, addings, buyings)
 	if err != nil {
 		return nil, err
