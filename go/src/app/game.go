@@ -389,8 +389,7 @@ func getStatus(roomName string) (*GameStatus, error) {
 	if err != nil {
 		return nil, err
 	}
-	status.Time = latestTime
-	
+
 	cache.Store(roomName, CachedStatus{
 		Status:    status,
 		Timestamp: time.Now().Unix(),
