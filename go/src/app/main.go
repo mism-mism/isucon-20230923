@@ -72,7 +72,7 @@ func getInitializeHandler(w http.ResponseWriter, r *http.Request) {
 
 func resolveHost(roomName string) string {
 	servers := []string{
-		"localhost:5000",    // s1
+		//"localhost:5000",    // s1
 		"172.31.9.132:5000", // s2
 		"172.31.9.132:5000", // s2
 		"172.31.2.168:5000", // s3
