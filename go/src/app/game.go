@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"math"
 	"math/big"
+	"strconv"
 	"sync"
 	"time"
 
@@ -132,33 +132,31 @@ func str2big(s string) *big.Int {
 	x.SetString(s, 10)
 	return x
 }
+
+var cache = sync.Map{} // グローバルキャッシュ
+
 func big2exp(n *big.Int) Exponential {
 	if n.IsInt64() {
 		return Exponential{n.Int64(), 0}
 	}
 
-	// Calculate the number of digits using logarithm base 10
-	// This is more efficient than converting the big.Int to a string.
-	numberOfDigits := float64(n.BitLen()) * (math.Log(2) / math.Log(10))
-	decimalDigits := int64(math.Ceil(numberOfDigits))
-
-	// If n has more than 15 digits
-	if decimalDigits > 15 {
-		// divisor = 10^(numberOfDigits-15)
-		divisor := new(big.Int).Exp(big.NewInt(10), big.NewInt(decimalDigits-15), nil)
-
-		// Divide n by divisor to get the top 15 digits
-		mantissaBig := new(big.Int).Quo(n, divisor)
-
-		// Ensure the result fits in an int64
-		if !mantissaBig.IsInt64() {
-			log.Panic("Mantissa too large for int64")
-		}
-		return Exponential{mantissaBig.Int64(), decimalDigits - 15}
+	// キャッシュから値を取得する
+	if exp, ok := cache.Load(n.String()); ok {
+		return exp.(Exponential)
 	}
 
-	// If the big.Int is less than 15 digits but too large for int64
-	return Exponential{n.Int64(), 0}
+	s := n.String()
+	t, err := strconv.ParseInt(s[:15], 10, 64)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	result := Exponential{t, int64(len(s) - 15)}
+
+	// 結果をキャッシュする
+	cache.Store(s, result)
+
+	return result
 }
 
 func getCurrentTime() (int64, error) {
