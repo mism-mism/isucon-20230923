@@ -645,6 +645,8 @@ func serveGameConn(ws *websocket.Conn, roomName string) {
 			case <-ctx.Done():
 				return
 			}
+
+			time.Sleep(100 * time.Millisecond)
 		}
 	}()
 
