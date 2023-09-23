@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"strconv"
 	"sync"
 	"time"
 
@@ -132,22 +133,40 @@ func str2big(s string) *big.Int {
 	return x
 }
 
+func exp10n(n int64) *big.Int {
+	return new(big.Int).Exp(big.NewInt(10), big.NewInt(n), nil)
+}
+
 func big2exp(n *big.Int) Exponential {
-	threshold := new(big.Int).Exp(big.NewInt(10), big.NewInt(15), nil)
-
-	if n.Cmp(threshold) < 0 {
-		return Exponential{n.Int64(), 0}
+	if n.Sign() == 0 {
+		return Exponential{0, 0}
 	}
 
-	numberOfDigits := int64(len(n.Text(10)))
-	divider := new(big.Int).Exp(big.NewInt(10), big.NewInt(numberOfDigits-15), nil)
-	mantissaBig := new(big.Int).Div(n, divider)
+	b := int64(n.BitLen())
+	d := (b / 10) * 3
+	e := d - 17
+	k := int64(0)
 
-	if mantissaBig.BitLen() > 63 {
-		log.Panic("Mantissa too large for int64")
+	if e > 0 {
+		k = e
+		n.Div(n, exp10n(e))
 	}
 
-	return Exponential{mantissaBig.Int64(), numberOfDigits - 15}
+	s := n.String()
+
+	if len(s) <= 15 {
+		val, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			panic(err)
+		}
+		return Exponential{val, k}
+	}
+
+	val, err := strconv.ParseInt(s[:15], 10, 64)
+	if err != nil {
+		panic(err)
+	}
+	return Exponential{val, int64(len(s)) - 15 + k}
 }
 
 func getCurrentTime() (int64, error) {
