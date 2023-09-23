@@ -72,9 +72,9 @@ func getInitializeHandler(w http.ResponseWriter, r *http.Request) {
 
 func resolveHost(roomName string) string {
 	servers := []string{
-		"172.31.9.132",
-		"172.31.2.168",
-		//"172.31.11.43",
+		"172.31.9.132:5000",
+		"172.31.2.168:5000",
+		//"172.31.11.43:5000",
 	}
 
 	h := md5.Sum([]byte(roomName))
