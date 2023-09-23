@@ -135,7 +135,7 @@ func str2big(s string) *big.Int {
 func big2exp(n *big.Int) Exponential {
 	threshold := new(big.Int).Exp(big.NewInt(10), big.NewInt(15), nil)
 
-	if n.Cmp(threshold) < 0 { // if n < 10^15
+	if n.Cmp(threshold) < 0 {
 		return Exponential{n.Int64(), 0}
 	}
 
@@ -143,6 +143,18 @@ func big2exp(n *big.Int) Exponential {
 	numberOfDigits := estimatedDigits
 
 	divider := new(big.Int).Exp(big.NewInt(10), big.NewInt(numberOfDigits-15), nil)
+
+	if n.Cmp(divider) < 0 {
+		numberOfDigits--
+		divider.Div(divider, big.NewInt(10))
+	} else {
+		nextDivider := new(big.Int).Mul(divider, big.NewInt(10))
+		if n.Cmp(nextDivider) >= 0 {
+			numberOfDigits++
+			divider = nextDivider
+		}
+	}
+
 	mantissaBig := new(big.Int).Div(n, divider)
 
 	if mantissaBig.BitLen() > 63 {
