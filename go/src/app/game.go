@@ -501,8 +501,6 @@ func calcStatus(currentTime int64, mItems map[int]mItem, addings []Adding, buyin
 
 		// 時刻 t で購入可能になったアイテムを記録する
 		var bought int
-		itemOnSale := make(map[int]int64)
-
 		for i, saleItem := range waitingOnSale {
 			if saleItem.Price.Cmp(totalMilliIsu) > 0 {
 				break
