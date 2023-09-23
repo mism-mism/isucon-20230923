@@ -200,9 +200,13 @@ type RoomInfo struct {
 	Mtx  sync.Mutex
 }
 
+var roomInfoMutex sync.Mutex
+
 var roomTimeMap = make(map[string]*RoomInfo)
 
 func updateRoomTime(roomName string, reqTime int64) (int64, bool, func()) {
+	roomInfoMutex.Lock()
+	defer roomInfoMutex.Unlock()
 	roomInfo, exists := roomTimeMap[roomName]
 	if !exists {
 		roomInfo = &RoomInfo{}
