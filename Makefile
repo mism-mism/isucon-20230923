@@ -8,10 +8,10 @@ build:
 stop-services:
 	sudo systemctl stop nginx
 	sudo systemctl stop cco.golang.service 
-	sudo systemctl stop mysql
+	ssh isucon-db "sudo systemctl stop mysql"
 
 start-services:
-	sudo systemctl start mysql
+	ssh isucon-db "sudo systemctl start mysql"
 	sudo systemctl start cco.golang.service 
 	sudo systemctl start nginx
 	sleep 10
@@ -19,8 +19,7 @@ start-services:
 truncate-logs:
 	sudo truncate --size 0 /var/log/nginx/access.log
 	sudo truncate --size 0 /var/log/nginx/error.log
-	# sudo truncate --size 0 /home/isucon/logs/slow-log.json
-	sudo truncate --size 0 /var/log/mysql/mysql-slow.log
+	ssh isucon-db "sudo truncate --size 0 /var/log/mysql/mysql-slow.log"
 
 kataribe:
 	sudo cat /var/log/nginx/access.log | ./../kataribe -conf ~/kataribe.toml
