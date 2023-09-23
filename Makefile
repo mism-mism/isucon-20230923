@@ -26,4 +26,4 @@ kataribe:
 	sudo cat /var/log/nginx/access.log | ./../kataribe -conf ~/kataribe.toml
 
 bench:
-	ssh isucon-bench `cd ~/bench && ./bench -remotes "172.31.8.31"`
+	ssh isucon-bench 'cd ~/bench && ./bench -remotes "172.31.8.31"'
