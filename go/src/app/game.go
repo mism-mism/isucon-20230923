@@ -562,7 +562,7 @@ func makeRoomStatusProvider(roomName string) {
 					err = ws.WriteJSON(status)
 					if err != nil {
 						log.Println(err)
-						// TODO: 失敗したらunsubscribe
+						unsubscribeRoomStatus(roomName, ws)
 						return
 					}
 				}(ws)
@@ -581,6 +581,25 @@ func subscribeRoomStatus(roomName string, ws *websocket.Conn) {
 	}
 	roomStatusSubscribersMutex.Unlock()
 	log.Println("subscribeRoomStatus", roomName, len(subscribers)+1)
+}
+
+func unsubscribeRoomStatus(roomName string, ws *websocket.Conn) {
+	roomStatusSubscribersMutex.Lock()
+	subscribers, ok := roomStatusSubscribers[roomName]
+	if !ok {
+		log.Println("unsubscribeRoomStatus", roomName, "not found")
+		return
+	}
+
+	newSubscribers := []*websocket.Conn{}
+	for _, s := range subscribers {
+		if s != ws {
+			newSubscribers = append(newSubscribers, s)
+		}
+	}
+	roomStatusSubscribers[roomName] = newSubscribers
+
+	roomStatusSubscribersMutex.Unlock()
 }
 
 func serveGameConn(ws *websocket.Conn, roomName string) {
