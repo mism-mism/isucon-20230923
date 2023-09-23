@@ -531,7 +531,7 @@ func calcStatus(currentTime int64, mItems map[int]mItem, addings []Adding, buyin
 }
 
 var (
-	roomStatusSubscribers      map[string][]*websocket.Conn
+	roomStatusSubscribers      = map[string][]*websocket.Conn{}
 	roomStatusSubscribersMutex = sync.RWMutex{}
 )
 
