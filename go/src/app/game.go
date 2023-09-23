@@ -541,6 +541,7 @@ func makeRoomStatusProvider(roomName string) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
+LOOP:
 	for {
 		select {
 		case <-ticker.C:
@@ -549,12 +550,12 @@ func makeRoomStatusProvider(roomName string) {
 			roomStatusSubscribersMutex.RUnlock()
 			if !ok || len(subscribers) == 0 {
 				log.Println("makeRoomStatusProvider", roomName, "no subscribers")
-				break
+				break LOOP
 			}
 
 			status, err := getStatus(roomName)
 			if err != nil {
-				log.Println(err)
+				log.Println("failed to get status", err)
 				return
 			}
 
