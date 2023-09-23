@@ -294,9 +294,9 @@ func buyItem(roomName string, itemID int, countBought int, reqTime int64) bool {
 	}
 
 	_, ok, fn := updateRoomTime(roomName, reqTime)
+	defer fn()
 	if !ok {
 		tx.Rollback()
-		fn()
 		return false
 	}
 
@@ -305,12 +305,10 @@ func buyItem(roomName string, itemID int, countBought int, reqTime int64) bool {
 	if err != nil {
 		log.Println(err)
 		tx.Rollback()
-		fn()
 		return false
 	}
 	if countBuying != countBought {
 		tx.Rollback()
-		fn()
 		log.Println(roomName, itemID, countBought+1, " is already bought")
 		return false
 	}
@@ -321,7 +319,6 @@ func buyItem(roomName string, itemID int, countBought int, reqTime int64) bool {
 	if err != nil {
 		log.Println(err)
 		tx.Rollback()
-		fn()
 		return false
 	}
 
@@ -334,7 +331,6 @@ func buyItem(roomName string, itemID int, countBought int, reqTime int64) bool {
 	if err != nil {
 		log.Println(err)
 		tx.Rollback()
-		fn()
 		return false
 	}
 	for _, b := range buyings {
@@ -354,7 +350,6 @@ func buyItem(roomName string, itemID int, countBought int, reqTime int64) bool {
 	if totalMilliIsu.Cmp(need) < 0 {
 		log.Println("not enough")
 		tx.Rollback()
-		fn()
 		return false
 	}
 
@@ -362,16 +357,13 @@ func buyItem(roomName string, itemID int, countBought int, reqTime int64) bool {
 	if err != nil {
 		log.Println(err)
 		tx.Rollback()
-		fn()
 		return false
 	}
 
 	if err := tx.Commit(); err != nil {
 		log.Println(err)
-		fn()
 		return false
 	}
-	fn()
 
 	return true
 }
@@ -383,9 +375,9 @@ func getStatus(roomName string) (*GameStatus, error) {
 	}
 
 	currentTime, ok, fn := updateRoomTime(roomName, 0)
+	defer fn()
 	if !ok {
 		tx.Rollback()
-		fn()
 		return nil, fmt.Errorf("updateRoomTime failure")
 	}
 
@@ -399,7 +391,6 @@ func getStatus(roomName string) (*GameStatus, error) {
 	err = tx.Select(&addings, "SELECT time, isu FROM adding WHERE room_name = ?", roomName)
 	if err != nil {
 		tx.Rollback()
-		fn()
 		return nil, err
 	}
 
@@ -407,16 +398,13 @@ func getStatus(roomName string) (*GameStatus, error) {
 	err = tx.Select(&buyings, "SELECT item_id, ordinal, time FROM buying WHERE room_name = ?", roomName)
 	if err != nil {
 		tx.Rollback()
-		fn()
 		return nil, err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		fn()
 		return nil, err
 	}
-	fn()
 
 	status, err := calcStatus(currentTime, mItems, addings, buyings)
 	if err != nil {
