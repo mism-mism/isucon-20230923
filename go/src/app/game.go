@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"math/big"
-	"strconv"
 	"sync"
+
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -133,31 +134,65 @@ func str2big(s string) *big.Int {
 	return x
 }
 
-var cache = sync.Map{} // グローバルキャッシュ
-
 func big2exp(n *big.Int) Exponential {
-	if n.IsInt64() {
-		return Exponential{n.Int64(), 0}
+	bits := n.Bits()
+	if len(bits) <= 1 {
+		return convertInt64ToExponentialForm(n.Int64(), 0)
 	}
 
-	// キャッシュから値を取得する
-	if exp, ok := cache.Load(n.String()); ok {
-		return exp.(Exponential)
+	numOfDecimalDigits := float64(len(bits)*64) * math.Log10(2)
+	requiredExponent := int64(numOfDecimalDigits - 14.0)
+
+	if requiredExponent < int64(len(powersOfTenCache)) {
+		mantissa := fastDivisionForBigInt(n, &powersOfTenCache[requiredExponent])
+		return convertInt64ToExponentialForm(mantissa, requiredExponent)
+	} else {
+		powerValue := new(big.Int).Exp(tenBigInt, big.NewInt(requiredExponent), nil)
+		mantissa := fastDivisionForBigInt(n, powerValue)
+		return convertInt64ToExponentialForm(mantissa, requiredExponent)
 	}
 
-	s := n.String()
-	t, err := strconv.ParseInt(s[:15], 10, 64)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	result := Exponential{t, int64(len(s) - 15)}
-
-	// 結果をキャッシュする
-	cache.Store(s, result)
-
-	return result
 }
+
+var zeroBigInt = big.NewInt(0)
+var tenBigInt = big.NewInt(10)
+
+func fastDivisionForBigInt(a *big.Int, b *big.Int) int64 {
+	numBitsInA := len(a.Bits())
+	if numBitsInA < 4 {
+		return zeroBigInt.Div(a, b).Int64()
+	}
+
+	top3BitsOfA := big.NewInt(0).SetBits(a.Bits()[numBitsInA-3:])
+	numBitsInB := len(b.Bits())
+	top3BitsOfB := big.NewInt(0).SetBits(b.Bits()[numBitsInB-3:])
+	return zeroBigInt.Div(top3BitsOfA, top3BitsOfB).Int64()
+}
+
+func convertInt64ToExponentialForm(mantissa, exponent int64) Exponential {
+	switch {
+	case mantissa < 10000000000000000:
+		return Exponential{mantissa, exponent}
+	case mantissa < 100000000000000000:
+		return Exponential{mantissa / 10, exponent + 1}
+	case mantissa < 1000000000000000000:
+		return Exponential{mantissa / 100, exponent + 2}
+	default:
+		return Exponential{mantissa / 1000, exponent + 3}
+	}
+}
+
+func generatePowerOfTenCache() []big.Int {
+	const cacheSize = 150000
+	cache := make([]big.Int, cacheSize)
+	cache[0].SetInt64(1)
+	for i := 1; i < cacheSize; i++ {
+		cache[i].Mul(tenBigInt, &cache[i-1])
+	}
+	return cache
+}
+
+var powersOfTenCache = generatePowerOfTenCache()
 
 func getCurrentTime() (int64, error) {
 	return time.Now().UnixNano() / int64(time.Millisecond), nil
